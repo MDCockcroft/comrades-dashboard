@@ -196,8 +196,6 @@
     </div>
   </section>
 
-  <div id="strava"></div>
-
   <div class="nav">
     <button class="arrow" id="prev" aria-label="Previous week">‹</button>
     <div class="navmid"><span class="wktitle" id="weekTitle">Week —</span></div>
@@ -831,15 +829,6 @@ function dateMap(){ // 'YYYY-MM-DD' -> {i,d}
 }
 function secToHMM(s){const h=Math.floor(s/3600),mn=Math.round((s%3600)/60);return (h?h:'0')+":"+String(mn).padStart(2,'0');}
 
-function renderStrava(){
-  const el=document.getElementById('strava'); if(!el) return;
-  const hr=hrMax();
-  el.innerHTML=`<span class="slogo">⚙ SETTINGS</span>
-    <span class="sinfo">Set your <b>Max HR</b> so the coach can read effort from the heart rate you log.</span>
-    <span class="hrset">Max HR <input id="hrMaxInput" type="number" placeholder="e.g. 188" value="${hr||''}"></span>`;
-  const hi=document.getElementById('hrMaxInput');
-  if(hi) hi.onchange=()=>{const v=parseInt(hi.value); if(v) localStorage.setItem('hrMax',v); else localStorage.removeItem('hrMax'); renderCoach(); render();};
-}
 
 function connectStrava(){
   if(isLocal){ flash("⚠️ Connect works once deployed to Netlify. Use 'try a demo sync' locally."); return; }
@@ -908,7 +897,6 @@ function demoSync(){
   save(); render(); flash("✅ Demo: synced "+n+" sample runs. (Set Max HR to see HR-based effort.)");
 }
 
-renderStrava();
 renderCountdown();render();
 </script>
 </body>
