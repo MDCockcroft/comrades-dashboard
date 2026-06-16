@@ -99,6 +99,7 @@
   .fields input:focus,.fields textarea:focus{outline:none;border-color:var(--orange);background:#fff;box-shadow:0 0 0 3px var(--orange-tint)}
   .fields input[type=range]{padding:0;accent-color:var(--orange);background:transparent;box-shadow:none}
   .rpe-out{color:var(--orange-d);font-weight:800}
+  .effort-ro{background:#F4F4F7;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;font-weight:700;color:var(--ink2)}
   textarea{resize:vertical;min-height:46px}
 
   /* stats */
@@ -728,7 +729,7 @@ function render(){
         <div class="fields">
           <div><label>Distance (km)</label><input type="number" step="0.1" value="${lg.dist||''}" data-d="${d}" data-f="dist" placeholder="${(dispTarget.match(/[\d.]+/)||[''])[0]}"></div>
           <div><label>Time (hh:mm)</label><input type="text" value="${lg.time||''}" data-d="${d}" data-f="time" placeholder="e.g. 1:05"></div>
-          <div><label>Effort 1–10 <span class="rpe-out">${lg.rpe||''}</span></label><input type="range" min="1" max="10" value="${lg.rpe||5}" data-d="${d}" data-f="rpe"></div>
+          <div><label>Effort (from HR zone)</label><div class="effort-ro">${effortDisplay(lg)}</div></div>
           <div><label>Felt</label><input type="text" value="${lg.feel||''}" data-d="${d}" data-f="feel" placeholder="good / tired / sore"></div>
           <div><label>Elevation (m)</label><input type="number" value="${lg.elev||''}" data-d="${d}" data-f="elev" placeholder="e.g. 120"></div>
           <div><label>Avg HR (bpm)</label><input type="number" value="${lg.hr||''}" data-d="${d}" data-f="hr" placeholder="e.g. 145"></div>
@@ -749,6 +750,7 @@ function render(){
         if(f==='done'){card.classList.toggle('done',el.checked);}
         save();
         refreshDyn(card,view,d);
+        const ro=card.querySelector('.effort-ro'); if(ro) ro.innerHTML=effortDisplay(logs[key(view,d)]||{});
       };
       el.addEventListener(el.type==='checkbox'||el.type==='range'?'input':'change',handler);
       if(el.type==='range') el.addEventListener('input',handler);
@@ -843,6 +845,12 @@ function hrMax(){const a=ageVal(); return a?Math.round(208-0.7*a):null;}   // Ta
 const ZONE_NAME={1:'Recovery',2:'Easy',3:'Aerobic',4:'Threshold',5:'Max'};
 function zoneOf(hr){const m=hrMax(); hr=parseFloat(hr); if(!hr||!m) return null; const p=hr/m; return p<0.60?1:p<0.70?2:p<0.80?3:p<0.90?4:5;}
 function zoneEffort(z){return {1:2,2:4,3:6,4:8,5:9}[z]||null;}
+function effortDisplay(lg){
+  const z=zoneOf(lg&&lg.hr);
+  if(z) return zoneEffort(z)+' / 10 · Z'+z+' '+ZONE_NAME[z];
+  if(lg&&lg.hr) return '— · enter age above to enable zones';
+  return '— · log avg HR for effort';
+}
 function renderCfg(){
   const el=document.getElementById('cfg'); if(!el) return;
   const a=ageVal(), m=hrMax();
