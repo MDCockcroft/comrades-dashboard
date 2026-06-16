@@ -672,6 +672,15 @@ function feedbackHTML(i,d,lg){
     if(r>=0.95&&r<=1.08) pts.push('✓ Distance on point — '+actual+'/'+plannedKm+' km.');
     else if(r<0.95){ watch=true; pts.push('↓ Short of target — '+actual+' of '+plannedKm+' km'+((lg.elev>=80)?' (though +'+lg.elev+'m climb makes it count for more).':'.')); }
     else pts.push('↑ Went long — '+actual+' vs '+plannedKm+' km. Fine if you felt good; just watch fatigue.');
+  } else if(isMin){
+    const targetMin=parseFloat((effTgt.match(/[\d.]+/)||[0])[0]);
+    const actualMin=parseMins(lg.time);
+    if(targetMin && actualMin){
+      const r=actualMin/targetMin;
+      if(r>=0.9&&r<=1.15) pts.push('✓ Duration on point — '+Math.round(actualMin)+'/'+targetMin+' min'+(actual?(' ('+actual+' km)'):'')+'.');
+      else if(r<0.9){ watch=true; pts.push('↓ Cut it short — '+Math.round(actualMin)+' of '+targetMin+' min.'); }
+      else pts.push('↑ Went longer — '+Math.round(actualMin)+' vs '+targetMin+' min — nice, just watch fatigue.');
+    }
   }
   if(pcSec && lo && hi && (easyType||steadyType)){
     if(steadyType){
@@ -755,21 +764,25 @@ function render(){
 
     card.querySelector('.toggle').onclick=()=>card.classList.toggle('open');
     card.querySelectorAll('[data-f]').forEach(el=>{
-      const handler=()=>{
+      const f=el.dataset.f;
+      const persist=()=>{
         const k=key(view,d); logs[k]=logs[k]||{};
-        const f=el.dataset.f;
-        logs[k][f]= f==='done'?el.checked : el.value;
-        if(f==='rpe'){card.querySelector('.rpe-out').textContent=el.value;}
+        logs[k][f]= (el.type==='checkbox')? el.checked : el.value;
         if(f==='done'){card.classList.toggle('done',el.checked);}
-        save();
+        save();                                   // write to localStorage on every change
         refreshDyn(card,view,d);
-        const ro=card.querySelector('.effort-ro'); if(ro) ro.innerHTML=effortDisplay(logs[key(view,d)]||{});
+        const ro=card.querySelector('.effort-ro'); if(ro) ro.innerHTML=effortDisplay(logs[k]);
       };
-      el.addEventListener(el.type==='checkbox'||el.type==='range'?'input':'change',handler);
-      if(el.type==='range') el.addEventListener('input',handler);
+      if(f==='time'){
+        el.addEventListener('input',()=>{ const v=maskTime(el.value); el.value=v; try{el.setSelectionRange(v.length,v.length);}catch(e){} persist(); });
+        el.addEventListener('change',persist);
+      } else if(el.type==='checkbox'){
+        el.addEventListener('change',persist);
+      } else {
+        el.addEventListener('input',persist);     // save as you type (survives app exit without blur)
+        el.addEventListener('change',persist);
+      }
     });
-    const timeEl=card.querySelector('[data-f="time"]');
-    if(timeEl) timeEl.addEventListener('input',()=>{const v=maskTime(timeEl.value); timeEl.value=v; try{timeEl.setSelectionRange(v.length,v.length);}catch(e){}});
   });
   renderStats();
 }
