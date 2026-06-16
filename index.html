@@ -514,13 +514,13 @@ function save(){localStorage.setItem('comradesLogs',JSON.stringify(logs));render
 function renderCoach(){const el=document.getElementById('coach'); if(el) el.innerHTML=coachHTML(view);}
 
 // ---- the brain: autoregulation engine ----
-function parseMins(t){ // "1:05"→65, "0:30"→30, "1:05:00"→65, "45"→45
+function parseMins(t){ // "45"→45min, "45:30"→45.5 (mm:ss), "1:05:30"→65.5 (h:mm:ss)
   if(!t) return null;
   const p=String(t).trim().split(':').map(Number);
   if(p.some(isNaN)) return null;
-  if(p.length===1) return p[0];
-  if(p.length===2) return p[0]*60+p[1];
-  return p[0]*60+p[1]+p[2]/60;
+  if(p.length===1) return p[0];                 // minutes
+  if(p.length===2) return p[0]+p[1]/60;         // mm:ss
+  return p[0]*60+p[1]+p[2]/60;                   // h:mm:ss
 }
 function paceStr(dist,time){
   const mins=parseMins(time), d=parseFloat(dist);
@@ -727,8 +727,8 @@ function render(){
       <div class="log">
         <label class="donecheck"><input type="checkbox" ${lg.done?'checked':''} data-d="${d}" data-f="done"> Mark this session done</label>
         <div class="fields">
-          <div><label>Distance (km)</label><input type="number" step="0.1" value="${lg.dist||''}" data-d="${d}" data-f="dist" placeholder="${(dispTarget.match(/[\d.]+/)||[''])[0]}"></div>
-          <div><label>Time (hh:mm)</label><input type="text" value="${lg.time||''}" data-d="${d}" data-f="time" placeholder="e.g. 1:05"></div>
+          <div><label>Distance (km)</label><input type="number" step="0.01" value="${lg.dist||''}" data-d="${d}" data-f="dist" placeholder="${(dispTarget.match(/[\d.]+/)||[''])[0]}"></div>
+          <div><label>Time (h:mm:ss)</label><input type="text" inputmode="numeric" value="${lg.time||''}" data-d="${d}" data-f="time" placeholder="e.g. 45:30 or 1:05:30"></div>
           <div><label>Effort (from HR zone)</label><div class="effort-ro">${effortDisplay(lg)}</div></div>
           <div><label>Felt</label><input type="text" value="${lg.feel||''}" data-d="${d}" data-f="feel" placeholder="good / tired / sore"></div>
           <div><label>Elevation (m)</label><input type="number" value="${lg.elev||''}" data-d="${d}" data-f="elev" placeholder="e.g. 120"></div>
