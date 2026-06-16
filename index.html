@@ -131,6 +131,12 @@
   .logged{margin-top:9px;font-size:12.5px;font-weight:700;color:var(--good);background:var(--good-tint);border:1px solid #CFEBD9;border-radius:8px;padding:5px 10px;display:inline-block}
   .via{font-weight:800;color:var(--orange-d);background:var(--orange-tint);border:1px solid var(--orange-line);border-radius:6px;padding:1px 6px;font-size:11px;margin-left:6px}
 
+  /* compact HR-zone config */
+  .cfgbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-weight:600;margin:0 2px 14px;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .cfgbar .cfg-i{font-family:var(--disp);font-weight:800;color:var(--orange-d);letter-spacing:.03em}
+  .cfgbar input{width:56px;background:#FAFAFC;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px}
+  .cfgbar input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-tint)}
+
   /* strava panel */
   .strava{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
   .strava .slogo{font-family:var(--disp);font-weight:900;font-size:13px;letter-spacing:.06em;color:var(--orange);text-transform:uppercase;display:flex;align-items:center;gap:7px}
@@ -195,6 +201,8 @@
       <span>Mon/Wed/Fri gym · Sun rest</span>
     </div>
   </section>
+
+  <div id="cfg" class="cfgbar"></div>
 
   <div class="nav">
     <button class="arrow" id="prev" aria-label="Previous week">‹</button>
@@ -548,11 +556,8 @@ function analyzeWeek(i){
         const eff=actual + (lg.elev?lg.elev*0.01:0);   // grade-adjust: ~100 m climb ≈ +1 km effort
         compl.push(Math.min(eff/planned,1.25));
       }
-      let rpe = lg.rpe? parseInt(lg.rpe) : null;
-      if(rpe==null && lg.hr && hrMax()){               // no manual effort → infer from heart rate
-        const pc=lg.hr/hrMax();
-        rpe = pc<0.68?2 : pc<0.74?3 : pc<0.80?5 : pc<0.86?6 : pc<0.91?8 : 9;
-      }
+      const z=zoneOf(lg.hr);                            // effort from HR zone takes priority
+      let rpe = z? zoneEffort(z) : (lg.rpe? parseInt(lg.rpe) : null);
       if(rpe!=null) rpes.push(rpe);
     }
   });
@@ -621,7 +626,8 @@ function refreshDyn(card,i,d){
   const el=card.querySelector('.dyn'); if(!el) return;
   const lg=logs[key(i,d)]||{};
   const pc=paceStr(lg.dist,lg.time);
-  const extras=[lg.elev?('↑'+lg.elev+'m'):'', lg.hr?(lg.hr+' bpm'):'', (lg.effort!=null&&lg.effort!=='')?('RE '+lg.effort):'', lg.cadence?(lg.cadence+' spm'):''].filter(Boolean).join(' · ');
+  const z=zoneOf(lg.hr);
+  const extras=[lg.elev?('↑'+lg.elev+'m'):'', lg.hr?(lg.hr+' bpm'+(z?(' · Z'+z+' '+ZONE_NAME[z]):'')):'', lg.cadence?(lg.cadence+' spm'):''].filter(Boolean).join(' · ');
   const via=lg.source==='strava'?' <span class="via">via Strava</span>':'';
   const logged=(lg.done&&(lg.dist||lg.time||lg.rpe||lg.elev||lg.hr))?
     `<div class="logged">Logged: ${lg.dist?lg.dist+' km':''}${pc?' · '+pc+'/km':''}${lg.rpe?' · RPE '+lg.rpe:''}${extras?' · '+extras:''}${lg.feel?' · '+lg.feel:''}${via}</div>`:'';
@@ -645,8 +651,7 @@ function feedbackHTML(i,d,lg){
   const pcStr=paceStr(lg.dist,lg.time);
   const pm=pcStr&&pcStr.match(/(\d+):(\d{2})/);
   const pcSec=pm?(+pm[1]*60+ +pm[2]):null;
-  let e=lg.rpe?parseInt(lg.rpe):null;
-  if(e==null && lg.hr && hrMax()){const r=lg.hr/hrMax(); e=r<0.68?2:r<0.74?3:r<0.80?5:r<0.86?6:r<0.91?8:9;}
+  const z=zoneOf(lg.hr);
   const pts=[]; let watch=false;
   if(plannedKm && actual){
     const r=actual/plannedKm;
@@ -663,11 +668,24 @@ function feedbackHTML(i,d,lg){
       else pts.push('✓ Easy pace was right ('+pcStr+'/km).');
     }
   }
-  if(e!=null){
+  if(z){
     if(!steadyType){
-      if(e>=7){ watch=true; pts.push('❤️ Felt hard for an easy run (effort '+e+'/10) — likely fatigue, heat or pace. Bank the recovery.'); }
-      else if(e<=4) pts.push('✓ Stayed nicely easy (effort '+e+'/10) — ideal aerobic work.');
-    } else if(e>=7){ pts.push('✓ Strong effort ('+e+'/10) for a quality session.'); }
+      if(z<=2) pts.push('✓ Zone '+z+' ('+ZONE_NAME[z]+') — ideal easy aerobic effort.');
+      else if(z===3){ watch=true; pts.push('Ran in Zone 3 (Aerobic) — above the easy range. Keep easy days in Zone 1–2 so they stay easy and you recover.'); }
+      else { watch=true; pts.push('Zone '+z+' ('+ZONE_NAME[z]+') on an easy run — that’s a hard effort. Easy days belong in Zone 1–2.'); }
+    } else {
+      if(z>=3&&z<=4) pts.push('✓ Zone '+z+' ('+ZONE_NAME[z]+') — right in the target range for this session.');
+      else if(z<3) pts.push('Mostly Zone '+z+' — a touch easy for this one; you could lift the effort.');
+      else { watch=true; pts.push('Zone 5 (Max) — very hard to sustain; make sure that was intended.'); }
+    }
+  } else {
+    const e=lg.rpe?parseInt(lg.rpe):null;
+    if(e!=null){
+      if(!steadyType){
+        if(e>=7){ watch=true; pts.push('❤️ Felt hard for an easy run (effort '+e+'/10) — likely fatigue, heat or pace. Bank the recovery.'); }
+        else if(e<=4) pts.push('✓ Stayed nicely easy (effort '+e+'/10) — ideal aerobic work.');
+      } else if(e>=7){ pts.push('✓ Strong effort ('+e+'/10) for a quality session.'); }
+    }
   }
   if(lg.elev>=120 && !(plannedKm&&actual&&actual/plannedKm<0.95)) pts.push('⛰ Hilly day (+'+lg.elev+'m) — great Down-Run conditioning.');
   if(!pts.length) return '';
@@ -683,6 +701,7 @@ function render(){
   document.getElementById('phaseTag').textContent=wk.phase;
   document.getElementById('weekTag').textContent="Week "+(view+1);
   document.getElementById('coach').innerHTML=coachHTML(view);
+  renderCfg();
   const wkF=weekFactor(view);
   const days=[["tue","Tuesday"],["thu","Thursday"],["sat","Saturday"]];
   const c=document.getElementById('cards'); c.innerHTML="";
@@ -711,8 +730,8 @@ function render(){
           <div><label>Time (hh:mm)</label><input type="text" value="${lg.time||''}" data-d="${d}" data-f="time" placeholder="e.g. 1:05"></div>
           <div><label>Effort 1–10 <span class="rpe-out">${lg.rpe||''}</span></label><input type="range" min="1" max="10" value="${lg.rpe||5}" data-d="${d}" data-f="rpe"></div>
           <div><label>Felt</label><input type="text" value="${lg.feel||''}" data-d="${d}" data-f="feel" placeholder="good / tired / sore"></div>
-          <div><label>Elevation (m)</label><input type="number" value="${lg.elev||''}" data-d="${d}" data-f="elev" placeholder="from Strava"></div>
-          <div><label>Avg HR (bpm)</label><input type="number" value="${lg.hr||''}" data-d="${d}" data-f="hr" placeholder="from Strava"></div>
+          <div><label>Elevation (m)</label><input type="number" value="${lg.elev||''}" data-d="${d}" data-f="elev" placeholder="e.g. 120"></div>
+          <div><label>Avg HR (bpm)</label><input type="number" value="${lg.hr||''}" data-d="${d}" data-f="hr" placeholder="e.g. 145"></div>
           <div class="full"><label>Notes</label><textarea data-d="${d}" data-f="notes" placeholder="terrain, niggles, fuel, weather…">${lg.notes||''}</textarea></div>
         </div>
       </div>`;
@@ -819,7 +838,20 @@ document.getElementById('goToday').onclick=()=>{view=currentWeekIndex();render()
 const STRAVA_FN = "/.netlify/functions/strava";
 const isLocal = /^(localhost|127|192\.168|file)/.test(location.hostname||"file");
 function getRefresh(){return localStorage.getItem('stravaRefresh');}
-function hrMax(){return parseInt(localStorage.getItem('hrMax'))||null;}
+function ageVal(){return parseInt(localStorage.getItem('age'))||null;}
+function hrMax(){const a=ageVal(); return a?Math.round(208-0.7*a):null;}   // Tanaka estimate
+const ZONE_NAME={1:'Recovery',2:'Easy',3:'Aerobic',4:'Threshold',5:'Max'};
+function zoneOf(hr){const m=hrMax(); hr=parseFloat(hr); if(!hr||!m) return null; const p=hr/m; return p<0.60?1:p<0.70?2:p<0.80?3:p<0.90?4:5;}
+function zoneEffort(z){return {1:2,2:4,3:6,4:8,5:9}[z]||null;}
+function renderCfg(){
+  const el=document.getElementById('cfg'); if(!el) return;
+  const a=ageVal(), m=hrMax();
+  el.innerHTML='<span class="cfg-i">♥ HR zones</span><span>Age</span>'+
+    '<input id="ageInput" type="number" min="10" max="100" placeholder="–" value="'+(a||'')+'">'+
+    (m?'<span>→ Max HR ≈ '+m+' bpm · zones active</span>':'<span>→ enter age to turn on zone feedback</span>');
+  const ai=document.getElementById('ageInput');
+  if(ai) ai.onchange=()=>{const v=parseInt(ai.value); if(v>0) localStorage.setItem('age',v); else localStorage.removeItem('age'); render();};
+}
 
 function ymd(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
 function dateMap(){ // 'YYYY-MM-DD' -> {i,d}
