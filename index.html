@@ -514,6 +514,12 @@ function save(){localStorage.setItem('comradesLogs',JSON.stringify(logs));render
 function renderCoach(){const el=document.getElementById('coach'); if(el) el.innerHTML=coachHTML(view);}
 
 // ---- the brain: autoregulation engine ----
+function maskTime(v){ // auto-insert colons, grouping digits from the right
+  const d=String(v).replace(/\D/g,'').slice(0,6);
+  if(d.length<=2) return d;
+  if(d.length<=4) return d.slice(0,d.length-2)+':'+d.slice(-2);
+  return d.slice(0,d.length-4)+':'+d.slice(-4,-2)+':'+d.slice(-2);
+}
 function parseMins(t){ // "45"→45min, "45:30"→45.5 (mm:ss), "1:05:30"→65.5 (h:mm:ss)
   if(!t) return null;
   const p=String(t).trim().split(':').map(Number);
@@ -755,6 +761,8 @@ function render(){
       el.addEventListener(el.type==='checkbox'||el.type==='range'?'input':'change',handler);
       if(el.type==='range') el.addEventListener('input',handler);
     });
+    const timeEl=card.querySelector('[data-f="time"]');
+    if(timeEl) timeEl.addEventListener('input',()=>{const v=maskTime(timeEl.value); timeEl.value=v; try{timeEl.setSelectionRange(v.length,v.length);}catch(e){}});
   });
   renderStats();
 }
