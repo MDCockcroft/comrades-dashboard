@@ -250,7 +250,8 @@
 </div>
 
 <script>
-const START = new Date(2026,5,15);            // Mon 15 Jun 2026 = Week 1
+function startDateVal(){const s=localStorage.getItem('startDate'); if(s){const p=s.split('-').map(Number); return new Date(p[0],p[1]-1,p[2]);} return new Date(2026,5,15);}
+let START = startDateVal();                    // Week 1 Monday — per-device (default Mon 15 Jun 2026)
 const RACE  = new Date(2027,5,13);            // estimated race day (confirm on comrades.com)
 const DAYNAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -885,9 +886,12 @@ function renderCfg(){
   const a=ageVal(), m=hrMax();
   el.innerHTML='<span class="cfg-i">♥ HR zones</span><span>Age</span>'+
     '<input id="ageInput" type="number" min="10" max="100" placeholder="–" value="'+(a||'')+'">'+
-    (m?'<span>→ Max HR ≈ '+m+' bpm · zones active</span>':'<span>→ enter age to turn on zone feedback</span>');
+    (m?'<span>→ Max HR ≈ '+m+' bpm</span>':'<span>→ enter age for zones</span>')+
+    '<span class="cfg-i" style="margin-left:auto">▶ Start</span><input id="startInput" type="date" style="width:148px" value="'+ymd(START)+'">';
   const ai=document.getElementById('ageInput');
   if(ai) ai.onchange=()=>{const v=parseInt(ai.value); if(v>0) localStorage.setItem('age',v); else localStorage.removeItem('age'); render();};
+  const si=document.getElementById('startInput');
+  if(si) si.onchange=()=>{ if(si.value){ localStorage.setItem('startDate',si.value); START=startDateVal(); renderCountdown(); render(); } };
 }
 
 function ymd(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
