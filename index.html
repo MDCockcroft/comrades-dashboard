@@ -558,7 +558,7 @@ function weekFactor(i){ const a=i>0?analyzeWeek(i-1):null; return (a&&a.enough)?
 // Read a week's logs → verdict + factor for the FOLLOWING week
 function analyzeWeek(i){
   if(i<0||i>=W.length) return null;
-  let done=0; const compl=[], rpes=[];
+  let done=0, missed=0; const compl=[], rpes=[]; const today=midnight(new Date());
   ["tue","thu","sat"].forEach(d=>{
     const lg=logs[key(i,d)]||{};
     if(lg.done){
@@ -573,12 +573,13 @@ function analyzeWeek(i){
       const z=zoneOf(lg.hr);                            // effort from HR zone takes priority
       let rpe = z? zoneEffort(z) : (lg.rpe? parseInt(lg.rpe) : null);
       if(rpe!=null) rpes.push(rpe);
+    } else if(midnight(weekDates(i)[d])<=today){
+      missed++;                                      // only "missed" once the day has passed
     }
   });
   if(done<2) return {n:i,done,enough:false};
   const avgC=compl.length? compl.reduce((a,b)=>a+b,0)/compl.length : null;
   const avgR=rpes.length? rpes.reduce((a,b)=>a+b,0)/rpes.length : null;
-  const missed=3-done;
   let factor=1,status='onTrack',reasons=[];
   const hardShort=avgC!=null&&avgC<0.8, hardRPE=avgR!=null&&avgR>=8;
   if(hardRPE||hardShort||missed>=2){
@@ -818,7 +819,7 @@ function buildExport(){
       const ds=weekDates(i)[d];
       const f=weekFactor(i);
       const adaptedTgt=(f!==1&&adaptable(W[i][d].label,W[i][d].target))?scaleTarget(W[i][d].target,f):null;
-      out.push({week:i+1,day:d,date:ds.toISOString().slice(0,10),
+      out.push({week:i+1,day:d,date:ymd(ds),
         planned:W[i][d].label+" "+W[i][d].target+" @ "+paceFor(W[i][d].label,W[i].phase),
         adapted_target:adaptedTgt,
         done:!!lg.done, dist_km:lg.dist?parseFloat(lg.dist):null,
