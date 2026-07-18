@@ -5,15 +5,13 @@ Single-page, zero-dependency `index.html` PWA; all data lives in the browser
 (localStorage). Deployed on GitHub Pages: https://mdcockcroft.github.io/comrades-dashboard/
 
 ## Project shape (durable)
-- **Single file:** `index.html` (~977 lines, no framework/build/CDN) + a 15-line
+- **Single file:** `index.html` (~885 lines, no framework/build/CDN) + a 15-line
   `sw.js` service worker (`comrades-cache-v1`) + `manifest.webmanifest`.
-- **Persistence:** localStorage only (`comradesLogs`, `startDate`, `age`, `strava*`).
+- **Persistence:** localStorage only (`comradesLogs`, `startDate`, `age`). No backend.
 - **Plan:** 52 weeks hardcoded in JS (phases P0–P4, deloads, taper); runs Tue/Thu/Sat.
-- ⚠️ **Strava is orphaned on the live site.** The Strava panel calls
-  `/.netlify/functions/strava`, which only exists behind Netlify Functions — but the
-  app is deployed to GitHub Pages, so Strava connect/sync is non-functional live
-  (only `demoSync()` works). `netlify/`, `netlify.toml`, `DEPLOY.md` are gitignored
-  as the abandoned approach.
+- **Strava/Netlify removed** (2026-07-18): the app previously carried an unreachable
+  Strava-over-Netlify-Functions integration; it was deleted, so the app is genuinely
+  localStorage-only now.
 
 ## Persistent memory (Obsidian vault)
 

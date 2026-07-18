@@ -137,26 +137,12 @@
   .coach-why{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
   .target-orig{font-size:12px;color:var(--faint);text-decoration:line-through;margin-left:3px;font-weight:600}
   .logged{margin-top:9px;font-size:12.5px;font-weight:700;color:var(--good);background:var(--good-tint);border:1px solid #CFEBD9;border-radius:8px;padding:5px 10px;display:inline-block}
-  .via{font-weight:800;color:var(--orange-d);background:var(--orange-tint);border:1px solid var(--orange-line);border-radius:6px;padding:1px 6px;font-size:11px;margin-left:6px}
 
   /* compact HR-zone config */
   .cfgbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-weight:600;margin:0 2px 14px;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
   .cfgbar .cfg-i{font-family:var(--disp);font-weight:800;color:var(--orange-d);letter-spacing:.03em}
   .cfgbar input{width:56px;background:#FAFAFC;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px}
   .cfgbar input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-tint)}
-
-  /* strava panel */
-  .strava{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
-  .strava .slogo{font-family:var(--disp);font-weight:900;font-size:13px;letter-spacing:.06em;color:var(--orange);text-transform:uppercase;display:flex;align-items:center;gap:7px}
-  .strava .sinfo{flex:1;min-width:140px;font-size:13px;color:var(--muted);font-weight:600}
-  .strava .sinfo b{color:var(--ink)}
-  .strava button{font-family:var(--disp);font-weight:700;font-size:13.5px;cursor:pointer;border-radius:11px;padding:10px 16px;border:1px solid var(--orange);background:var(--orange);color:#fff;transition:.15s}
-  .strava button:hover{background:var(--orange-d)}
-  .strava button.outline{background:#fff;color:var(--orange-d)}
-  .strava button.outline:hover{background:var(--orange-tint)}
-  .strava .hrset{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600}
-  .strava .hrset input{width:62px;background:#FAFAFC;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
-  .strava .demo{font-size:11.5px;color:var(--faint);text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;font-weight:600}
 
   details{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:2px 18px;box-shadow:var(--shadow)}
   summary{cursor:pointer;font-family:var(--disp);font-weight:700;font-size:14px;padding:14px 0;list-style:none}
@@ -644,9 +630,8 @@ function refreshDyn(card,i,d){
   const pc=paceStr(lg.dist,lg.time);
   const z=zoneOf(lg.hr);
   const extras=[lg.elev?('↑'+lg.elev+'m'):'', lg.hr?(lg.hr+' bpm'+(z?(' · Z'+z+' '+ZONE_NAME[z]):'')):'', lg.cadence?(lg.cadence+' spm'):''].filter(Boolean).join(' · ');
-  const via=lg.source==='strava'?' <span class="via">via Strava</span>':'';
   const logged=(lg.done&&(lg.dist||lg.time||lg.rpe||lg.elev||lg.hr))?
-    `<div class="logged">Logged: ${lg.dist?lg.dist+' km':''}${pc?' · '+pc+'/km':''}${lg.rpe?' · RPE '+lg.rpe:''}${extras?' · '+extras:''}${lg.feel?' · '+lg.feel:''}${via}</div>`:'';
+    `<div class="logged">Logged: ${lg.dist?lg.dist+' km':''}${pc?' · '+pc+'/km':''}${lg.rpe?' · RPE '+lg.rpe:''}${extras?' · '+extras:''}${lg.feel?' · '+lg.feel:''}</div>`:'';
   el.innerHTML = logged + feedbackHTML(i,d,lg);
 }
 
@@ -866,10 +851,7 @@ document.getElementById('prev').onclick=()=>{if(view>0){view--;render();}};
 document.getElementById('next').onclick=()=>{if(view<W.length-1){view++;render();}};
 document.getElementById('goToday').onclick=()=>{view=currentWeekIndex();render();window.scrollTo({top:0,behavior:'smooth'});};
 
-// ---- Strava integration ----
-const STRAVA_FN = "/.netlify/functions/strava";
-const isLocal = /^(localhost|127|192\.168|file)/.test(location.hostname||"file");
-function getRefresh(){return localStorage.getItem('stravaRefresh');}
+// ---- HR zones, effort & config ----
 function ageVal(){return parseInt(localStorage.getItem('age'))||null;}
 function hrMax(){const a=ageVal(); return a?Math.round(208-0.7*a):null;}   // Tanaka estimate
 const ZONE_NAME={1:'Recovery',2:'Easy',3:'Aerobic',4:'Threshold',5:'Max'};
@@ -895,80 +877,6 @@ function renderCfg(){
 }
 
 function ymd(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');}
-function dateMap(){ // 'YYYY-MM-DD' -> {i,d}
-  const m={};
-  for(let i=0;i<W.length;i++){const wd=weekDates(i);["tue","thu","sat"].forEach(d=>{m[ymd(wd[d])]={i,d};});}
-  return m;
-}
-function secToHMM(s){const h=Math.floor(s/3600),mn=Math.round((s%3600)/60);return (h?h:'0')+":"+String(mn).padStart(2,'0');}
-
-
-function connectStrava(){
-  if(isLocal){ flash("⚠️ Connect works once deployed to Netlify. Use 'try a demo sync' locally."); return; }
-  location.href = STRAVA_FN+"?action=login";
-}
-
-async function handleOAuthReturn(){
-  const u=new URL(location.href);
-  const code=u.searchParams.get('code');
-  if(!code) return;
-  try{
-    const r=await fetch(STRAVA_FN+"?action=exchange&code="+encodeURIComponent(code));
-    const j=await r.json();
-    if(j.refresh_token){
-      localStorage.setItem('stravaRefresh',j.refresh_token);
-      if(j.athlete&&j.athlete.name) localStorage.setItem('stravaName',j.athlete.name);
-      history.replaceState({},'',location.pathname);   // clean ?code from URL
-      renderStrava(); flash("✅ Strava connected! Syncing…"); syncStrava();
-    } else { flash("⚠️ Strava connect failed."); }
-  }catch(e){ flash("⚠️ Strava connect error."); }
-}
-
-async function syncStrava(){
-  const ref=getRefresh(); if(!ref){flash("Connect Strava first.");return;}
-  flash("↻ Pulling runs from Strava…");
-  const after=Math.floor((Date.now()-1000*86400*120)/1000); // last ~120 days
-  try{
-    const r=await fetch(STRAVA_FN+"?action=activities",{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:ref,after})});
-    const j=await r.json();
-    if(j.error){flash("⚠️ "+(j.error));return;}
-    if(j.refresh_token) localStorage.setItem('stravaRefresh',j.refresh_token);
-    const n=applyRuns(j.runs||[]);
-    localStorage.setItem('stravaLast', fmtNow());
-    save(); render();
-    flash(n? "✅ Synced "+n+" run"+(n>1?"s":"")+" from Strava." : "No new runs matched your scheduled days.");
-  }catch(e){ flash("⚠️ Sync error: "+e); }
-}
-
-function fmtNow(){const d=new Date();return DAYNAMES[d.getDay()]+" "+d.getDate()+" "+MONTHS[d.getMonth()]+", "+String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0');}
-
-function applyRuns(runs){ // match each run to a scheduled day by date, fill fields
-  const map=dateMap(); let n=0;
-  runs.forEach(rn=>{
-    const day=String(rn.date).slice(0,10);
-    const slot=map[day]; if(!slot) return;
-    const k=key(slot.i,slot.d), cur=logs[k]||{};
-    logs[k]=Object.assign({},cur,{
-      done:true, source:'strava', stravaId:rn.id, stravaName:rn.name,
-      dist:String(rn.distance_km), time:secToHMM(rn.moving_time_s),
-      elev: rn.elev_m, hr: rn.avg_hr, hrMaxRun: rn.max_hr, effort: rn.effort, cadence: rn.cadence
-    });
-    n++;
-  });
-  return n;
-}
-
-// Demo data so you can see matching/brain locally before deploying
-function demoSync(){
-  const wd=weekDates(currentWeekIndex());
-  const runs=[
-    {id:1,name:"Morning Run",date:ymd(wd.tue)+"T06:30:00Z",distance_km:5.1,moving_time_s:38*60,elev_m:42,avg_hr:138,max_hr:155,effort:24,cadence:166},
-    {id:2,name:"Easy jog",date:ymd(wd.thu)+"T06:20:00Z",distance_km:5.0,moving_time_s:37*60,elev_m:38,avg_hr:135,max_hr:150,effort:21,cadence:168},
-    {id:3,name:"Long one",date:ymd(wd.sat)+"T07:00:00Z",distance_km:4.0,moving_time_s:33*60,elev_m:120,avg_hr:171,max_hr:182,effort:78,cadence:160}
-  ];
-  const n=applyRuns(runs); localStorage.setItem('stravaLast', fmtNow()+" (demo)");
-  save(); render(); flash("✅ Demo: synced "+n+" sample runs. (Set Max HR to see HR-based effort.)");
-}
 
 renderCountdown();render();
 if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }

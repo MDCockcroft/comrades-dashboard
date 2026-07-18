@@ -1,7 +1,3 @@
-# Abandoned Strava/Netlify approach — not part of the shared app
-netlify.toml
-netlify/
-DEPLOY.md
 .DS_Store
 
 # graphify codebase-map build artifact (regenerable; exported to the Obsidian vault)
