@@ -138,6 +138,24 @@
   .target-orig{font-size:12px;color:var(--faint);text-decoration:line-through;margin-left:3px;font-weight:600}
   .logged{margin-top:9px;font-size:12.5px;font-weight:700;color:var(--good);background:var(--good-tint);border:1px solid #CFEBD9;border-radius:8px;padding:5px 10px;display:inline-block}
 
+  /* training-load / ACWR gauge */
+  .gauge{border-radius:14px;padding:13px 16px 15px;margin-bottom:12px;border:1px solid var(--line);border-left-width:4px;background:var(--card);box-shadow:var(--shadow);animation:rise .45s both cubic-bezier(.2,.8,.2,1)}
+  .gauge.z-detrain{border-left-color:var(--faint)}
+  .gauge.z-sweet{border-left-color:var(--good);background:#F4FBF6}
+  .gauge.z-caution{border-left-color:#E0A100;background:#FFFBEF}
+  .gauge.z-danger{border-left-color:#CC3B3B;background:#FFF6F4}
+  .gauge.neutral{border-left-color:var(--faint)}
+  .gauge-body{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px}
+  .gauge-svg{width:270px;max-width:100%;height:auto;flex:none}
+  .gauge-svg .gt{font-size:12px;fill:var(--faint);font-family:var(--disp);font-weight:700}
+  .gauge-read{flex:1;min-width:150px}
+  .gauge-val{font-family:var(--disp);font-weight:900;font-size:44px;line-height:.9;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .gauge-pill{display:inline-block;font-size:12px;font-weight:800;font-family:var(--disp);letter-spacing:.03em;padding:3px 10px;border-radius:8px;margin-top:7px}
+  .gauge-sub{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.45;max-width:260px}
+  .gauge-stats{display:flex;gap:16px;margin-top:11px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .gauge-stats b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+  .gauge-foot{font-size:11px;color:var(--faint);margin-top:11px;line-height:1.45}
+
   /* compact HR-zone config */
   .cfgbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-weight:600;margin:0 2px 14px;padding:9px 13px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
   .cfgbar .cfg-i{font-family:var(--disp);font-weight:800;color:var(--orange-d);letter-spacing:.03em}
@@ -207,6 +225,7 @@
   <p class="focus" id="focus">—</p>
 
   <div id="coach"></div>
+  <div id="loadgauge"></div>
   <div id="cards"></div>
 
   <div class="section-label">Your progress</div>
@@ -504,7 +523,7 @@ function fmt(d){return DAYNAMES[d.getDay()]+" "+d.getDate()+" "+MONTHS[d.getMont
 function sameDay(a,b){return a.getFullYear()==b.getFullYear()&&a.getMonth()==b.getMonth()&&a.getDate()==b.getDate();}
 function key(i,day){return i+"_"+day;}
 
-function save(){localStorage.setItem('comradesLogs',JSON.stringify(logs));renderStats();renderCoach();}
+function save(){localStorage.setItem('comradesLogs',JSON.stringify(logs));renderStats();renderCoach();renderLoadGauge();}
 function renderCoach(){const el=document.getElementById('coach'); if(el) el.innerHTML=coachHTML(view);}
 
 // ---- the brain: autoregulation engine ----
@@ -711,6 +730,7 @@ function render(){
   document.getElementById('phaseTag').textContent=wk.phase;
   document.getElementById('weekTag').textContent="Week "+(view+1);
   document.getElementById('coach').innerHTML=coachHTML(view);
+  renderLoadGauge();
   renderCfg();
   const wkF=weekFactor(view);
   const days=[["tue","Tuesday"],["thu","Thursday"],["sat","Saturday"]];
@@ -826,6 +846,13 @@ function buildExport(){
       return {analyzed_week:cur+1, verdict:statusMeta(a.status).txt, factor_for_week:cur+2,
         factor:a.factor, avg_completion:a.avgC?Math.round(a.avgC*100)+'%':null,
         avg_effort:a.avgR?a.avgR.toFixed(1):null, missed:a.missed, reasons:a.reasons};})(),
+    training_load:(function(){const a=acwrFor(cur);
+      if(!a.hasData) return "No load logged in week "+(cur+1)+" (needs HR/effort + time).";
+      const series=[]; for(let w=0;w<=cur;w++){const wl=weekLoad(w); if(wl.n>0) series.push({week:w+1,load_au:Math.round(wl.load)});}
+      return {method:"Foster sRPE (effort × min), coupled ACWR", week:cur+1,
+        acute_au:Math.round(a.acute), chronic_au:Math.round(a.chronic),
+        acwr:a.ratio!=null?+a.ratio.toFixed(2):null, zone:a.ratio!=null?acwrZone(a.ratio).label:null,
+        weekly_load:series};})(),
     sessions:out
   };
 }
@@ -863,6 +890,80 @@ function effortDisplay(lg){
   if(lg&&lg.hr) return '— · enter age above to enable zones';
   return '— · log avg HR for effort';
 }
+
+// ---- training load (Foster session-RPE) & ACWR ----
+function sessionEffort(lg){                         // 1–10, same priority the coach uses
+  const z=zoneOf(lg&&lg.hr);
+  return z? zoneEffort(z) : (lg&&lg.rpe? parseInt(lg.rpe) : null);
+}
+function sessionLoad(lg){                           // load = effort × duration(min)
+  if(!lg||!lg.done) return null;
+  const e=sessionEffort(lg), m=parseMins(lg.time);
+  return (e!=null && m) ? e*m : null;
+}
+function weekLoad(i){                               // {load, n} — n = sessions that contributed
+  let load=0,n=0;
+  ["tue","thu","sat"].forEach(d=>{ const l=sessionLoad(logs[key(i,d)]); if(l!=null){load+=l;n++;} });
+  return {load,n};
+}
+function acwrFor(i){                                // coupled: acute ÷ mean(last ≤4 wks with data)
+  const acute=weekLoad(i);
+  if(acute.n===0) return {hasData:false};
+  const win=[];
+  for(let w=Math.max(0,i-3); w<=i; w++){ const wl=weekLoad(w); if(wl.n>0) win.push(wl.load); }
+  const chronic=win.reduce((a,b)=>a+b,0)/win.length;
+  const ratio=chronic>0? acute.load/chronic : null;
+  return {hasData:true, acute:acute.load, chronic, ratio, weeks:win.length};
+}
+function acwrZone(r){
+  if(r<0.8)  return {cls:'z-detrain',color:'#7C7C86',label:'Under-loading',note:'ramping down — fine on a deload, but watch for detraining if it holds.'};
+  if(r<=1.3) return {cls:'z-sweet',  color:'#1B9E5A',label:'Sweet spot',   note:r>=1.2?'healthy ramp — near the top of the safe band.':'healthy, well-absorbed training load.'};
+  if(r<=1.5) return {cls:'z-caution',color:'#B07E00',label:'Caution',      note:'ramping quickly — hold volume steady next week rather than adding.'};
+  return              {cls:'z-danger', color:'#CC3B3B',label:'High risk',    note:'load spike — pull back to protect against injury (esp. the back/quads).'};
+}
+function gaugeSVG(r,color){
+  const c=Math.max(0.5,Math.min(2,r)), th=(180-(c-0.5)/1.5*180)*Math.PI/180;
+  const nx=(200+132*Math.cos(th)).toFixed(1), ny=(190-132*Math.sin(th)).toFixed(1);
+  const dx=(200+150*Math.cos(th)).toFixed(1), dy=(190-150*Math.sin(th)).toFixed(1);
+  return `<svg viewBox="0 0 400 214" class="gauge-svg" role="img" aria-label="Training-load ratio gauge at ${r.toFixed(2)}">
+    <path d="M50 190 A150 150 0 0 1 78.65 101.83" fill="none" stroke="#B9B9C2" stroke-width="24"/>
+    <path d="M78.65 101.83 A150 150 0 0 1 215.68 40.82" fill="none" stroke="#1B9E5A" stroke-width="24"/>
+    <path d="M215.68 40.82 A150 150 0 0 1 275 60.1" fill="none" stroke="#E0A100" stroke-width="24"/>
+    <path d="M275 60.1 A150 150 0 0 1 350 190" fill="none" stroke="#CC3B3B" stroke-width="24"/>
+    <text x="48" y="207" text-anchor="middle" class="gt">0.5</text>
+    <text x="54" y="92" text-anchor="end" class="gt">0.8</text>
+    <text x="221" y="18" text-anchor="start" class="gt">1.3</text>
+    <text x="293" y="40" text-anchor="start" class="gt">1.5</text>
+    <text x="352" y="207" text-anchor="middle" class="gt">2.0</text>
+    <line x1="200" y1="190" x2="${nx}" y2="${ny}" stroke="#1B1B1F" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="${dx}" cy="${dy}" r="6.5" fill="${color}" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="200" cy="190" r="8" fill="#1B1B1F"/><circle cx="200" cy="190" r="3" fill="#fff"/>
+  </svg>`;
+}
+function loadGaugeHTML(i){
+  const a=acwrFor(i);
+  if(!a.hasData) return `<div class="gauge neutral">
+    <div class="coach-h"><span class="brain">📈</span> Training load · acute : chronic</div>
+    <div class="coach-why">Log avg HR + time on your runs (and set your age above for HR zones) and I'll track training load and injury-risk ratio here.</div></div>`;
+  if(a.weeks<2 || a.ratio==null) return `<div class="gauge neutral">
+    <div class="coach-h"><span class="brain">📈</span> Training load · acute : chronic</div>
+    <div class="coach-why">This week's load is <b>${Math.round(a.acute)} AU</b>. Building the baseline — a few weeks of data unlock the acute:chronic ratio.</div></div>`;
+  const z=acwrZone(a.ratio);
+  return `<div class="gauge ${z.cls}">
+    <div class="coach-h"><span class="brain">📈</span> Training load · acute : chronic · Week ${i+1}</div>
+    <div class="gauge-body">
+      ${gaugeSVG(a.ratio,z.color)}
+      <div class="gauge-read">
+        <div class="gauge-val" style="color:${z.color}">${a.ratio.toFixed(2)}</div>
+        <span class="gauge-pill" style="color:${z.color};background:${z.color}1A">${z.label}</span>
+        <div class="gauge-sub">${z.note}</div>
+        <div class="gauge-stats"><span>This week · acute <b>${Math.round(a.acute)} AU</b></span><span>4-wk avg · chronic <b>${Math.round(a.chronic)} AU</b></span></div>
+        <div class="gauge-foot">Load = effort × minutes (Foster sRPE). Ratio zones follow Gabbett ACWR — a directional flag, not a verdict.</div>
+      </div>
+    </div></div>`;
+}
+function renderLoadGauge(){const el=document.getElementById('loadgauge'); if(el) el.innerHTML=loadGaugeHTML(view);}
+
 function renderCfg(){
   const el=document.getElementById('cfg'); if(!el) return;
   const a=ageVal(), m=hrMax();
